@@ -1,0 +1,883 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHIT CONTROL</title>
+    <link rel="icon" type="image/x-icon" href="logo.ico">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            background-image: url('https://images.pexels.com/photos/437036/pexels-photo-437036.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-color: #8B4513;
+        }
+
+        .content {
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 90%;
+            margin: 20px;
+        }
+
+        h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+
+        .calendar {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .day {
+            padding: 10px;
+            border-radius: 5px;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .day input[type="number"], .day input[type="time"] {
+            width: 70px;
+            text-align: center;
+            margin: 5px 0;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            color: #000;
+        }
+
+        .date-picker {
+            margin-bottom: 10px;
+        }
+
+        .date-picker input[type="date"] {
+            padding: 5px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            color: #000;
+        }
+
+        .notes-section {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .notes-section textarea {
+            width: 100%;
+            max-width: 300px;
+            height: 150px;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            color: #000;
+            resize: vertical;
+        }
+
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #qaqotaBtn {
+            background-color: #007BFF;
+            color: white;
+        }
+
+        #summaryBtn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #shareBtn {
+            background-color: #FFA500;
+            color: white;
+        }
+
+        #screenShareBtn {
+            background-color: #800080;
+            color: white;
+        }
+
+        #resetBtn {
+            background-color: #ff0000;
+            color: white;
+        }
+
+        #notesBtn {
+            background-color: #6B7280;
+            color: white;
+        }
+
+        #gpsBtn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #logoUpload {
+            margin-top: 10px;
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #logoUpload::-webkit-file-upload-button, #logoUpload::file-selector-button {
+            background-color: #000000;
+            color: #FFFFFF;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #totalDepositionsBtn {
+            background-color: #8B4513;
+            color: white;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: default;
+        }
+
+        #summary {
+            margin-top: 10px;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+        }
+
+        #summarySection {
+            margin-top: 10px;
+            display: none;
+        }
+
+        #dailyChart {
+            max-width: 300px !important;
+            max-height: 200px !important;
+            margin-top: 10px;
+        }
+
+        #uploadedImageContainer {
+            margin-top: 20px;
+            display: none;
+            text-align: center;
+        }
+
+        #uploadedImageContainer img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 5px;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+        }
+
+        #mapLinkContainer {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: #fff;
+            text-align: center;
+            z-index: 1001;
+            display: none;
+        }
+
+        #mapLinkContainer a {
+            color: #00BFFF;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        #mapLinkContainer a:hover {
+            color: #1E90FF;
+        }
+
+        @media (max-width: 600px) {
+            .day {
+                padding: 5px;
+                min-height: 150px;
+                font-size: 0.9em;
+            }
+            .day input[type="number"], .day input[type="time"] {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .notes-section textarea {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            #mapLinkContainer {
+                width: 80%;
+                font-size: 0.9em;
+            }
+            #dailyChart {
+                max-width: 100% !important;
+                max-height: 150px !important;
+            }
+            #totalDepositionsBtn {
+                width: 50px;
+                height: 50px;
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h1>SHIT CONTROL</h1>
+        <div class="buttons">
+            <button id="qaqotaBtn">Mostrar Calendario</button>
+            <button id="summaryBtn">Resumen</button>
+            <button id="shareBtn">Compartir Archivo</button>
+            <button id="screenShareBtn">Compartir Pantalla</button>
+            <button id="resetBtn">Restablecer</button>
+            <button id="notesBtn">Notas</button>
+            <button id="gpsBtn">GPS</button>
+            <input type="file" id="logoUpload" accept="image/*">
+            <button id="totalDepositionsBtn">0</button>
+        </div>
+        <div class="calendar" id="calendar">
+            <div class="date-picker">
+                <label for="dateSelect" class="sr-only">Seleccionar fecha</label>
+                <input type="date" id="dateSelect" aria-label="Seleccionar fecha para editar datos">
+            </div>
+            <div id="dayContainer"></div>
+        </div>
+        <div class="notes-section" id="notesSection">
+            <div class="date-picker">
+                <label for="notesDateSelect" class="sr-only">Seleccionar fecha para notas</label>
+                <input type="date" id="notesDateSelect" aria-label="Seleccionar fecha para editar notas">
+            </div>
+            <textarea id="notesInput" placeholder="Escribe tus notas aquÃ­..." aria-label="Notas para la fecha seleccionada"></textarea>
+        </div>
+        <div class="summary-section" id="summarySection">
+            <div class="date-picker">
+                <label for="summaryDateSelect" class="sr-only">Seleccionar fecha para resumen</label>
+                <input type="date" id="summaryDateSelect" aria-label="Seleccionar fecha para el resumen">
+            </div>
+            <div id="summary"></div>
+            <canvas id="dailyChart"></canvas>
+        </div>
+        <div id="uploadedImageContainer"></div>
+    </div>
+
+    <div id="map">
+        <button id="closeMapBtn" style="position: absolute; top: 10px; right: 10px; z-index: 1001; background-color: #ff0000; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer;">Cerrar</button>
+        <button id="captureMapBtn" style="position: absolute; top: 10px; left: 10px; z-index: 1001; background-color: #4CAF50; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer;">Capturar Mapa</button>
+        <div id="mapContainer" style="height: 100%; width: 100%;"></div>
+        <div id="mapLinkContainer">
+            <p>Enlace de ubicaciÃ³n: <a id="mapLink" href="#" target="_blank">Abrir en Google Maps</a></p>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        console.log("SHIT CONTROL page loaded at", new Date().toLocaleString());
+
+        const calendar = document.getElementById('calendar');
+        const dayContainer = document.getElementById('dayContainer');
+        const dateSelect = document.getElementById('dateSelect');
+        const notesSection = document.getElementById('notesSection');
+        const notesDateSelect = document.getElementById('notesDateSelect');
+        const notesInput = document.getElementById('notesInput');
+        const summarySection = document.getElementById('summarySection');
+        const summary = document.getElementById('summary');
+        const summaryDateSelect = document.getElementById('summaryDateSelect');
+        const qaqotaBtn = document.getElementById('qaqotaBtn');
+        const summaryBtn = document.getElementById('summaryBtn');
+        const shareBtn = document.getElementById('shareBtn');
+        const screenShareBtn = document.getElementById('screenShareBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const notesBtn = document.getElementById('notesBtn');
+        const gpsBtn = document.getElementById('gpsBtn');
+        const logoUpload = document.getElementById('logoUpload');
+        const uploadedImageContainer = document.getElementById('uploadedImageContainer');
+        const map = document.getElementById('map');
+        const closeMapBtn = document.getElementById('closeMapBtn');
+        const captureMapBtn = document.getElementById('captureMapBtn');
+        const mapContainer = document.getElementById('mapContainer');
+        const mapLinkContainer = document.getElementById('mapLinkContainer');
+        const mapLink = document.getElementById('mapLink');
+        const totalDepositionsBtn = document.getElementById('totalDepositionsBtn');
+
+        const colors = [
+            'rgba(255, 99, 132, 0.5)', 'rgba(54, 162, 235, 0.5)', 'rgba(255, 206, 86, 0.5)',
+            'rgba(75, 192, 192, 0.5)', 'rgba(153, 102, 255, 0.5)', 'rgba(255, 159, 64, 0.5)',
+            'rgba(199, 199, 199, 0.5)'
+        ];
+
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth();
+        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const currentDay = today.getDate();
+
+        let depositions = JSON.parse(localStorage.getItem('depositions')) || {};
+        let notes = JSON.parse(localStorage.getItem('notes')) || {};
+        let leafletMap;
+        let currentMarker = null;
+        let clickCount = 0;
+        let clickTimer = null;
+
+        function updateTotalDepositions() {
+            const total = Object.values(depositions).reduce((sum, dep) => sum + (dep.count || 0), 0);
+            totalDepositionsBtn.textContent = total;
+        }
+
+        function generateDay(day, month, year) {
+            dayContainer.innerHTML = '';
+            const colorIndex = (day - 1) % colors.length;
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'day';
+            dayDiv.style.backgroundColor = colors[colorIndex];
+            const deposition = depositions[day] || { count: 0, time: '', weight: 0, steps: 0, sleep: 0 };
+            dayDiv.innerHTML = `
+                <span>DÃ­a ${day} ${monthNames[month]}</span>
+                <label for="count-${day}" class="sr-only">NÂº de deposiciones</label>
+                <input type="number" id="count-${day}" min="0" value="${deposition.count}" data-day="${day}" data-type="count" aria-label="NÂº de deposiciones para el dÃ­a ${day}">
+                <label for="time-${day}" class="sr-only">Hora</label>
+                <input type="time" id="time-${day}" value="${deposition.time}" data-day="${day}" data-type="time" aria-label="Hora para el dÃ­a ${day}">
+                <label for="weight-${day}" class="sr-only">Peso (kg)</label>
+                <input type="number" id="weight-${day}" min="0" step="0.1" value="${deposition.weight}" data-day="${day}" data-type="weight" aria-label="Peso en kg para el dÃ­a ${day}">
+                <label for="steps-${day}" class="sr-only">Pasos</label>
+                <input type="number" id="steps-${day}" min="0" value="${deposition.steps}" data-day="${day}" data-type="steps" aria-label="Pasos para el dÃ­a ${day}">
+                <label for="sleep-${day}" class="sr-only">SueÃ±o (horas)</label>
+                <input type="number" id="sleep-${day}" min="0" step="0.1" value="${deposition.sleep}" data-day="${day}" data-type="sleep" aria-label="Horas de sueÃ±o para el dÃ­a ${day}">
+            `;
+            dayContainer.appendChild(dayDiv);
+            updateTotalDepositions();
+        }
+
+        function initializeDatePicker() {
+            const todayStr = today.toISOString().split('T')[0];
+            dateSelect.value = todayStr;
+            dateSelect.max = new Date(year, month, daysInMonth).toISOString().split('T')[0];
+            dateSelect.min = new Date(year, month, 1).toISOString().split('T')[0];
+        }
+
+        function initializeNotesDatePicker() {
+            const todayStr = today.toISOString().split('T')[0];
+            notesDateSelect.value = todayStr;
+            notesDateSelect.max = new Date(year, month, daysInMonth).toISOString().split('T')[0];
+            notesDateSelect.min = new Date(year, month, 1).toISOString().split('T')[0];
+            loadNotesForDate(todayStr);
+        }
+
+        function initializeSummaryDatePicker() {
+            const todayStr = today.toISOString().split('T')[0];
+            summaryDateSelect.value = todayStr;
+            summaryDateSelect.max = new Date(year, month, daysInMonth).toISOString().split('T')[0];
+            summaryDateSelect.min = new Date(year, month, 1).toISOString().split('T')[0];
+            updateDailySummary(todayStr);
+        }
+
+        function loadNotesForDate(date) {
+            const selectedDate = new Date(date);
+            const day = selectedDate.getDate();
+            notesInput.value = notes[day] || '';
+        }
+
+        function updateDailySummary(date) {
+            const selectedDate = new Date(date);
+            const day = selectedDate.getDate();
+            const deposition = depositions[day] || { count: 0, time: '', weight: 0, steps: 0, sleep: 0 };
+            let details = `Resumen DÃ­a ${day} ${monthNames[month]}:\n`;
+            details += `Dep.: ${deposition.count} | `;
+            details += `Hora: ${deposition.time || '-'}\n`;
+            details += `Peso: ${deposition.weight.toFixed(1)} kg | `;
+            details += `Pasos: ${deposition.steps} | `;
+            details += `SueÃ±o: ${deposition.sleep.toFixed(1)} h`;
+            if (notes[day]) {
+                details += `\nNotas: ${notes[day].substring(0, 50)}${notes[day].length > 50 ? '...' : ''}`;
+            }
+            summary.textContent = details;
+            updateDailyChart(day);
+        }
+
+        qaqotaBtn.addEventListener('click', () => {
+            calendar.style.display = calendar.style.display === 'none' ? 'flex' : 'none';
+            notesSection.style.display = 'none';
+            summarySection.style.display = 'none';
+            if (calendar.style.display === 'flex') {
+                generateDay(currentDay, month, year);
+                initializeDatePicker();
+            }
+        });
+
+        notesBtn.addEventListener('click', () => {
+            notesSection.style.display = notesSection.style.display === 'none' ? 'flex' : 'none';
+            calendar.style.display = 'none';
+            summarySection.style.display = 'none';
+            if (notesSection.style.display === 'flex') {
+                initializeNotesDatePicker();
+            }
+        });
+
+        summaryBtn.addEventListener('click', () => {
+            summarySection.style.display = summarySection.style.display === 'none' ? 'block' : 'none';
+            calendar.style.display = 'none';
+            notesSection.style.display = 'none';
+            if (summarySection.style.display === 'block') {
+                initializeSummaryDatePicker();
+            }
+        });
+
+        dateSelect.addEventListener('change', () => {
+            const selectedDate = new Date(dateSelect.value);
+            const selectedDay = selectedDate.getDate();
+            const selectedMonth = selectedDate.getMonth();
+            const selectedYear = selectedDate.getFullYear();
+            if (selectedMonth === month && selectedYear === year) {
+                generateDay(selectedDay, month, year);
+            } else {
+                alert('Por favor, selecciona una fecha dentro del mes actual.');
+                dateSelect.value = today.toISOString().split('T')[0];
+                generateDay(currentDay, month, year);
+            }
+        });
+
+        notesDateSelect.addEventListener('change', () => {
+            const selectedDate = new Date(notesDateSelect.value);
+            const selectedMonth = selectedDate.getMonth();
+            const selectedYear = selectedDate.getFullYear();
+            if (selectedMonth === month && selectedYear === year) {
+                loadNotesForDate(notesDateSelect.value);
+            } else {
+                alert('Por favor, selecciona una fecha dentro del mes actual.');
+                notesDateSelect.value = today.toISOString().split('T')[0];
+                loadNotesForDate(today.toISOString().split('T')[0]);
+            }
+        });
+
+        summaryDateSelect.addEventListener('change', () => {
+            const selectedDate = new Date(summaryDateSelect.value);
+            const selectedMonth = selectedDate.getMonth();
+            const selectedYear = selectedDate.getFullYear();
+            if (selectedMonth === month && selectedYear === year) {
+                updateDailySummary(summaryDateSelect.value);
+            } else {
+                alert('Por favor, selecciona una fecha dentro del mes actual.');
+                summaryDateSelect.value = today.toISOString().split('T')[0];
+                updateDailySummary(today.toISOString().split('T')[0]);
+            }
+        });
+
+        notesInput.addEventListener('input', () => {
+            const selectedDate = new Date(notesDateSelect.value);
+            const day = selectedDate.getDate();
+            notes[day] = notesInput.value;
+            try {
+                localStorage.setItem('notes', JSON.stringify(notes));
+            } catch (error) {
+                console.error('Error saving notes to localStorage:', error);
+                alert('No se pudo guardar las notas. Verifique el almacenamiento del navegador.');
+            }
+            if (summarySection.style.display === 'block') {
+                updateDailySummary(notesDateSelect.value);
+            }
+        });
+
+        dayContainer.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT') {
+                const day = e.target.dataset.day;
+                const type = e.target.dataset.type;
+                depositions[day] = depositions[day] || { count: 0, time: '', weight: 0, steps: 0, sleep: 0 };
+                if (type === 'count') {
+                    depositions[day].count = Math.max(0, parseInt(e.target.value) || 0);
+                } else if (type === 'time') {
+                    depositions[day].time = e.target.value || '00:00';
+                } else if (type === 'weight') {
+                    depositions[day].weight = Math.max(0, parseFloat(e.target.value) || 0);
+                } else if (type === 'steps') {
+                    depositions[day].steps = Math.max(0, parseInt(e.target.value) || 0);
+                } else if (type === 'sleep') {
+                    depositions[day].sleep = Math.max(0, parseFloat(e.target.value) || 0);
+                }
+                try {
+                    localStorage.setItem('depositions', JSON.stringify(depositions));
+                } catch (error) {
+                    console.error('Error saving to localStorage:', error);
+                    alert('No se pudo guardar los datos. Verifique el almacenamiento del navegador.');
+                }
+                if (summarySection.style.display === 'block') {
+                    updateDailySummary(summaryDateSelect.value);
+                }
+                updateTotalDepositions();
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            clickCount++;
+            if (clickCount === 1) {
+                clickTimer = setTimeout(() => {
+                    alert('Por favor, haz doble clic en el botÃ³n Restablecer para confirmar.');
+                    clickCount = 0;
+                }, 300);
+            } else if (clickCount === 2) {
+                clearTimeout(clickTimer);
+                if (confirm('Â¿EstÃ¡s seguro de que deseas borrar todos los datos? Esta acciÃ³n no se puede deshacer.')) {
+                    depositions = {};
+                    notes = {};
+                    try {
+                        localStorage.setItem('depositions', JSON.stringify(depositions));
+                        localStorage.setItem('notes', JSON.stringify(notes));
+                        summary.textContent = '';
+                        summarySection.style.display = 'none';
+                        uploadedImageContainer.style.display = 'none';
+                        calendar.style.display = 'none';
+                        notesSection.style.display = 'none';
+                        generateDay(currentDay, month, year);
+                        updateDailySummary(today.toISOString().split('T')[0]);
+                        updateTotalDepositions();
+                    } catch (error) {
+                        console.error('Error saving to localStorage:', error);
+                        alert('No se pudo guardar los datos. Verifique el almacenamiento del navegador.');
+                    }
+                }
+                clickCount = 0;
+            }
+        });
+
+        let selectedFile = null;
+
+        logoUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    uploadedImageContainer.innerHTML = '';
+                    const img = document.createElement('img');
+                    img.src = event.target.result;
+                    uploadedImageContainer.appendChild(img);
+                    uploadedImageContainer.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert('Por favor, selecciona una imagen vÃ¡lida.');
+                selectedFile = null;
+                uploadedImageContainer.style.display = 'none';
+            }
+        });
+
+        shareBtn.addEventListener('click', () => {
+            if (selectedFile) {
+                if (navigator.share) {
+                    navigator.share({
+                        files: [selectedFile],
+                        title: 'Archivo de SHIT CONTROL',
+                        text: 'Compartiendo archivo seleccionado'
+                    }).catch(error => {
+                        console.error('Error sharing:', error);
+                        alert('No se pudo compartir el archivo.');
+                    });
+                } else {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(selectedFile);
+                    link.download = selectedFile.name;
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                }
+            } else {
+                alert('Por favor, selecciona un archivo primero usando el campo de carga.');
+            }
+        });
+
+        screenShareBtn.addEventListener('click', () => {
+            html2canvas(document.body).then(canvas => {
+                canvas.toBlob(blob => {
+                    const screenFile = new File([blob], 'screenshot.png', { type: 'image/png' });
+                    if (navigator.share) {
+                        navigator.share({
+                            files: [screenFile],
+                            title: 'Captura de Pantalla de SHIT CONTROL',
+                            text: 'Compartiendo captura de pantalla'
+                        }).catch(error => {
+                            console.error('Error sharing screenshot:', error);
+                            alert('No se pudo compartir la captura de pantalla.');
+                        });
+                    } else {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(screenFile);
+                        link.download = 'screenshot.png';
+                        link.click();
+                        URL.revokeObjectURL(link.href);
+                    }
+                }, 'image/png');
+            }).catch(error => {
+                console.error('Error capturing screenshot:', error);
+                alert('No se pudo capturar la pantalla.');
+            });
+        });
+
+        function initMap() {
+            if (!leafletMap) {
+                leafletMap = L.map('mapContainer').setView([0, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: 'Â© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(leafletMap);
+                leafletMap.on('load', () => {
+                    setTimeout(() => {
+                        leafletMap.invalidateSize();
+                    }, 100);
+                });
+            }
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        leafletMap.setView([latitude, longitude], 15);
+                        if (currentMarker) {
+                            leafletMap.removeLayer(currentMarker);
+                        }
+                        currentMarker = L.marker([latitude, longitude]).addTo(leafletMap);
+                        setTimeout(() => {
+                            leafletMap.invalidateSize();
+                        }, 500);
+                    },
+                    (error) => {
+                        console.error('Error getting location:', error);
+                        alert('Error al obtener la ubicaciÃ³n. AsegÃºrate de que los servicios de ubicaciÃ³n estÃ©n habilitados.');
+                    },
+                    { enableHighAccuracy: true }
+                );
+            } else {
+                alert('La geolocalizaciÃ³n no es compatible con este navegador.');
+            }
+        }
+
+        function captureMap() {
+            if (!leafletMap || !currentMarker) {
+                alert('El mapa no estÃ¡ inicializado o no se ha obtenido la ubicaciÃ³n. Por favor, intenta de nuevo.');
+                return;
+            }
+            leafletMap.invalidateSize();
+            const coords = currentMarker.getLatLng();
+            const mapUrl = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
+            mapLink.href = mapUrl;
+            mapLink.textContent = `Abrir en Google Maps (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
+            mapLinkContainer.style.display = 'block';
+            if (navigator.share) {
+                navigator.share({
+                    title: 'UbicaciÃ³n de SHIT CONTROL',
+                    text: `UbicaciÃ³n: ${mapUrl}`
+                }).catch(error => {
+                    console.error('Error sharing location:', error);
+                    alert('No se pudo compartir la ubicaciÃ³n.');
+                });
+            }
+        }
+
+        gpsBtn.addEventListener('click', () => {
+            map.style.display = 'block';
+            initMap();
+        });
+
+        closeMapBtn.addEventListener('click', () => {
+            map.style.display = 'none';
+            mapLinkContainer.style.display = 'none';
+        });
+
+        captureMapBtn.addEventListener('click', () => {
+            captureMap();
+        });
+
+        let dailyChart = new Chart(document.getElementById('dailyChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Dep.', 'Peso', 'Pasos', 'SueÃ±o'],
+                datasets: [{
+                    label: 'Datos del DÃ­a',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        'rgba(255, 105, 180, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 206, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 105, 180, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Valor', color: '#fff', font: { size: 10 } },
+                        ticks: { color: '#fff', font: { size: 8 } },
+                        grid: { color: 'rgba(255, 255, 255, 0.2)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'MÃ©tricas', color: '#fff', font: { size: 10 } },
+                        ticks: { color: '#fff', font: { size: 8 } }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        display: true,
+                        labels: { color: '#fff', font: { size: 10 } }
+                    },
+                    tooltip: {
+                        titleFont: { size: 10 },
+                        bodyFont: { size: 8 }
+                    }
+                },
+                layout: {
+                    padding: 5
+                }
+            }
+        });
+
+        function updateDailyChart(day) {
+            const deposition = depositions[day] || { count: 0, weight: 0, steps: 0, sleep: 0 };
+            dailyChart.data.datasets[0].data = [
+                deposition.count,
+                deposition.weight,
+                deposition.steps / 1000, // Scale steps for better visualization
+                deposition.sleep
+            ];
+            dailyChart.data.datasets[0].label = `DÃ­a ${day} ${monthNames[month]}`;
+            dailyChart.update();
+        }
+    </script>
+</html>
