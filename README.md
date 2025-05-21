@@ -1,0 +1,1 @@
+Esta es una APP destinada a llevar un control de peso sueño, pasos ademas de deposiciones con la opcion de compartir estas en fotos asi como resumenes de recuentos y mandar la ubicacion con enlace web de donde se esta produciendo el evento.Tambien tiene notas y todo es editable y compartible
